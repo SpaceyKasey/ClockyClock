@@ -1,6 +1,8 @@
 # ClockyClock
 
 An e-paper world clock and weather station built on the [LilyGo T5 ePaper S3](https://github.com/Xinyuan-LilyGO/LilyGo-EPD47). Displays local time, date, and weather for up to 8 international cities on a 4.7" e-ink display. Configuration is managed through a serial command interface and persisted to an SD card. Cities can be customized via the serial console or by editing `cities.json` on the SD card.
+  
+![ClockyClock](clockyclock.jpeg "ClockyClock")
 
 ## Hardware
 
