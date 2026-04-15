@@ -18,3 +18,8 @@ void formatDayShort(const struct tm* t, char* buf, size_t bufSize);
 
 // Format as "Apr 15"
 void formatMonthDay(const struct tm* t, char* buf, size_t bufSize);
+
+// Hardware RTC (PCF8563)
+bool rtcInit();                // Init RTC on I2C, returns true if found
+void rtcSyncFromSystem();      // Write system time to RTC (after NTP sync)
+bool rtcRestoreToSystem();     // Read RTC and set system clock, returns true if valid

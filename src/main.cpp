@@ -26,11 +26,30 @@ static int8_t lastRenderedMinute = -1;
 static TaskHandle_t networkTaskHandle = NULL;
 static volatile bool networkBusy = false;
 
-// Network task: runs weather fetches in background
+// Network task: runs weather fetches and WiFi reconnect in background
+static const unsigned long WIFI_RETRY_MS = 60 * 1000;  // retry WiFi every 60s
+static unsigned long lastWifiRetry = 0;
+
 static void networkTask(void* param) {
     for (;;) {
+        unsigned long now = millis();
+
+        // WiFi reconnect if disconnected
+        if (!g_state.wifiConnected && strlen(g_state.config.wifiSsid) > 0
+            && now - lastWifiRetry > WIFI_RETRY_MS) {
+            lastWifiRetry = now;
+            networkBusy = true;
+            Serial.println("WiFi: Retrying...");
+            wifiConnect(g_state.config.wifiSsid, g_state.config.wifiPassword, 10);
+            if (g_state.wifiConnected) {
+                ntpSync();
+                g_state.needsFullRedraw = true;
+            }
+            networkBusy = false;
+        }
+
+        // Weather and NTP when connected
         if (!networkBusy && g_state.wifiConnected) {
-            unsigned long now = millis();
             // Weather fetch
             if (now - g_state.lastWeatherFetch > WEATHER_INTERVAL_MS || g_state.lastWeatherFetch == 0) {
                 networkBusy = true;
@@ -45,7 +64,7 @@ static void networkTask(void* param) {
                 networkBusy = false;
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(5000));  // Check every 5 seconds
+        vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
 
@@ -91,6 +110,9 @@ void setup() {
     bool touchOk = touchInit();
     Serial.printf("Touch: %s\n", touchOk ? "OK" : "FAILED");
 
+    // Initialize hardware RTC (PCF8563 on same I2C bus)
+    rtcInit();
+
     // Allocate framebuffer in PSRAM
     g_state.framebuffer = (uint8_t*)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
     if (!g_state.framebuffer) {
@@ -117,9 +139,8 @@ void setup() {
         configApply();
     }
 
-    // Connect WiFi
+    // Connect WiFi (non-blocking — proceed to clock even if it fails)
     if (strlen(g_state.config.wifiSsid) > 0) {
-        // Show connecting status
         clearFramebuffer();
         drawTextCentered(FONT_LG, "ClockyClock", SCREEN_W / 2, SCREEN_H / 2 - 60, COLOR_BLACK);
         char wifiBuf[80];
@@ -131,6 +152,14 @@ void setup() {
 
         if (g_state.wifiConnected) {
             ntpSync();
+        }
+    }
+
+    // If NTP didn't sync, try to restore time from hardware RTC
+    if (!g_state.ntpSynced) {
+        if (rtcRestoreToSystem()) {
+            g_state.ntpSynced = true;  // time from RTC is good
+            Serial.println("Using time from hardware RTC");
         }
     }
 

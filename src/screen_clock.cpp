@@ -61,8 +61,8 @@ static void drawCityRow(uint8_t rowIdx, uint8_t cityIdx) {
     int32_t nameX = 20;
     int32_t timeX = 245;
     int32_t dateX = 585;
-    int32_t todayWx = 730;
-    int32_t tmrwWx = 840;
+    int32_t todayWx = 690;
+    int32_t tmrwWx = 820;
 
     int32_t textBaseline = y + 65;    // Vertical center for large text
 
@@ -92,20 +92,28 @@ static void drawCityRow(uint8_t rowIdx, uint8_t cityIdx) {
         drawText(FONT_SM, "---", dateX, y + 55, COLOR_MID);
     }
 
-    // Today's weather
+    // Weather
     if (city.weatherValid) {
-        drawWeatherIcon(todayWx, y + 20, city.currentWeatherCode);
+        const char* unit = g_state.config.useFahrenheit ? "F" : "C";
         char tempBuf[16];
-        snprintf(tempBuf, sizeof(tempBuf), "%.0f%s",
-                 city.currentTemp, g_state.config.useFahrenheit ? "F" : "C");
-        drawText(FONT_SM, tempBuf, todayWx + 52, y + 55, COLOR_BLACK);
 
-        // Tomorrow's weather
+        // Today: icon + current temp, then H/L below
+        drawWeatherIcon(todayWx, y + 10, city.currentWeatherCode);
+        snprintf(tempBuf, sizeof(tempBuf), "%.0f%s", city.currentTemp, unit);
+        drawText(FONT_SM, tempBuf, todayWx + 52, y + 42, COLOR_BLACK);
+        snprintf(tempBuf, sizeof(tempBuf), "%.0f/%.0f",
+                 city.forecast[0].tempMax, city.forecast[0].tempMin);
+        drawText(FONT_SM, tempBuf, todayWx + 52, y + 70, COLOR_MID);
+
+        // Tomorrow: icon + max temp, then H/L below
         if (city.forecast[1].code >= 0) {
-            drawWeatherIcon(tmrwWx, y + 20, city.forecast[1].code);
+            drawWeatherIcon(tmrwWx, y + 10, city.forecast[1].code);
             snprintf(tempBuf, sizeof(tempBuf), "%.0f%s",
-                     city.forecast[1].tempMax, g_state.config.useFahrenheit ? "F" : "C");
-            drawText(FONT_SM, tempBuf, tmrwWx + 52, y + 55, COLOR_MID);
+                     city.forecast[1].tempMax, unit);
+            drawText(FONT_SM, tempBuf, tmrwWx + 52, y + 42, COLOR_MID);
+            snprintf(tempBuf, sizeof(tempBuf), "%.0f/%.0f",
+                     city.forecast[1].tempMax, city.forecast[1].tempMin);
+            drawText(FONT_SM, tempBuf, tmrwWx + 52, y + 70, COLOR_MID);
         }
     }
 }
@@ -120,8 +128,8 @@ void screenClockRender() {
     drawButton(SCREEN_W - 70, 5, 60, 40, "CFG");
 
     // Subtitle labels
-    drawText(FONT_SM, "Today", 730, 45, COLOR_MID);
-    drawText(FONT_SM, "Tmrw", 845, 45, COLOR_MID);
+    drawText(FONT_SM, "Today", 690, 45, COLOR_MID);
+    drawText(FONT_SM, "Tmrw", 825, 45, COLOR_MID);
 
     // City rows
     uint8_t startIdx = g_state.clockPage * MAX_VISIBLE_ROWS;

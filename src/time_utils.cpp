@@ -1,7 +1,14 @@
 #include "time_utils.h"
+#include <Arduino.h>
+#include <Wire.h>
+#include <SensorPCF8563.hpp>
+#include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static SensorPCF8563 rtc;
+static bool rtcFound = false;
 
 static const char* DAY_NAMES[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 static const char* MONTH_NAMES[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -61,4 +68,41 @@ void formatDayShort(const struct tm* t, char* buf, size_t bufSize) {
 
 void formatMonthDay(const struct tm* t, char* buf, size_t bufSize) {
     snprintf(buf, bufSize, "%s %d", MONTH_NAMES[t->tm_mon], t->tm_mday);
+}
+
+bool rtcInit() {
+    // PCF8563 at I2C address 0x51
+    Wire.beginTransmission(0x51);
+    if (Wire.endTransmission() != 0) {
+        Serial.println("RTC: PCF8563 not found");
+        return false;
+    }
+    rtc.begin(Wire);
+    rtcFound = true;
+    Serial.println("RTC: PCF8563 online");
+    return true;
+}
+
+void rtcSyncFromSystem() {
+    if (!rtcFound) return;
+    rtc.hwClockWrite();
+    Serial.println("RTC: Synced from NTP");
+}
+
+bool rtcRestoreToSystem() {
+    if (!rtcFound) return false;
+    struct tm timeinfo;
+    rtc.getDateTime(&timeinfo);
+    if (timeinfo.tm_year > 100) {  // valid if year > 2000
+        struct timeval tv;
+        tv.tv_sec = mktime(&timeinfo);
+        tv.tv_usec = 0;
+        settimeofday(&tv, NULL);
+        Serial.printf("RTC: Restored %04d-%02d-%02d %02d:%02d:%02d\n",
+                       timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                       timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+        return true;
+    }
+    Serial.println("RTC: No valid time stored");
+    return false;
 }

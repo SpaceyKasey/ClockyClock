@@ -1,5 +1,6 @@
 #include "wifi_manager.h"
 #include "app_state.h"
+#include "time_utils.h"
 #include <WiFi.h>
 #include <esp_sntp.h>
 
@@ -63,6 +64,7 @@ bool ntpSync() {
                       timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
         g_state.ntpSynced = true;
         g_state.lastNtpSync = millis();
+        rtcSyncFromSystem();
         return true;
     }
 

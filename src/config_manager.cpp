@@ -184,3 +184,4 @@ void citiesSave() {
     }
     citiesWriteDefaults();  // writes current PRESET_CITIES to SD
 }
+
