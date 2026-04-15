@@ -1,0 +1,95 @@
+#include "weather_service.h"
+#include "cities.h"
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <WiFi.h>
+
+static const char* OPEN_METEO_BASE = "https://api.open-meteo.com/v1/forecast";
+
+bool fetchWeather(CityData& city, bool useFahrenheit) {
+    if (WiFi.status() != WL_CONNECTED) return false;
+
+    const CityPreset& preset = PRESET_CITIES[city.presetIndex];
+    const char* tempUnit = useFahrenheit ? "fahrenheit" : "celsius";
+
+    char url[512];
+    snprintf(url, sizeof(url),
+             "%s?latitude=%.4f&longitude=%.4f"
+             "&current=temperature_2m,weather_code"
+             "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset"
+             "&forecast_days=7"
+             "&timezone=auto"
+             "&temperature_unit=%s",
+             OPEN_METEO_BASE, preset.latitude, preset.longitude, tempUnit);
+
+    Serial.printf("Weather: Fetching for %s...\n", preset.name);
+
+    HTTPClient http;
+    http.begin(url);
+    http.setTimeout(10000);
+    int httpCode = http.GET();
+
+    if (httpCode != 200) {
+        Serial.printf("Weather: HTTP %d for %s\n", httpCode, preset.name);
+        http.end();
+        return false;
+    }
+
+    String payload = http.getString();
+    http.end();
+
+    // Parse JSON
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (err) {
+        Serial.printf("Weather: JSON parse error: %s\n", err.c_str());
+        return false;
+    }
+
+    // Current conditions
+    JsonObject current = doc["current"];
+    city.currentTemp = current["temperature_2m"] | 0.0f;
+    city.currentWeatherCode = current["weather_code"] | -1;
+
+    // Daily forecast
+    JsonObject daily = doc["daily"];
+    JsonArray codes = daily["weather_code"];
+    JsonArray maxTemps = daily["temperature_2m_max"];
+    JsonArray minTemps = daily["temperature_2m_min"];
+    JsonArray sunrises = daily["sunrise"];
+    JsonArray sunsets = daily["sunset"];
+
+    for (int i = 0; i < 7 && i < (int)codes.size(); i++) {
+        city.forecast[i].code = codes[i] | -1;
+        city.forecast[i].tempMax = maxTemps[i] | 0.0f;
+        city.forecast[i].tempMin = minTemps[i] | 0.0f;
+    }
+
+    // Store today's sunrise/sunset (format: "2024-04-06T06:23")
+    const char* sr = sunrises[0] | "";
+    const char* ss = sunsets[0] | "";
+    // Extract time portion after 'T'
+    const char* srT = strchr(sr, 'T');
+    const char* ssT = strchr(ss, 'T');
+    if (srT) strncpy(city.sunrise, srT + 1, 5);
+    if (ssT) strncpy(city.sunset, ssT + 1, 5);
+    city.sunrise[5] = '\0';
+    city.sunset[5] = '\0';
+
+    city.weatherValid = true;
+    city.weatherLastUpdate = millis();
+
+    Serial.printf("Weather: %s - %.1f%s, code %d\n",
+                  preset.name, city.currentTemp,
+                  useFahrenheit ? "F" : "C", city.currentWeatherCode);
+
+    return true;
+}
+
+void fetchAllWeather() {
+    for (uint8_t i = 0; i < g_state.config.numCities; i++) {
+        fetchWeather(g_state.cities[i], g_state.config.useFahrenheit);
+        delay(200);  // Small delay between requests to be polite
+    }
+    g_state.lastWeatherFetch = millis();
+}
