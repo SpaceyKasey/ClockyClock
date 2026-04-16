@@ -60,7 +60,11 @@ static void networkTask(void* param) {
             // NTP resync
             if (now - g_state.lastNtpSync > NTP_RESYNC_MS) {
                 networkBusy = true;
-                ntpSync();
+                if (!ntpSync()) {
+                    // Back off on failure: retry in 60s, not every 5s.
+                    // Repeated configTime() calls destabilize the network stack.
+                    g_state.lastNtpSync = now - NTP_RESYNC_MS + 60000;
+                }
                 networkBusy = false;
             }
         }

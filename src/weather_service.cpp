@@ -5,6 +5,7 @@
 #include <WiFi.h>
 
 static const char* OPEN_METEO_BASE = "https://api.open-meteo.com/v1/forecast";
+static const unsigned long WEATHER_RETRY_MS = 9 * 60 * 1000;  // On failure, retry in ~60s (10min interval - 9min)
 
 bool fetchWeather(CityData& city, bool useFahrenheit) {
     if (WiFi.status() != WL_CONNECTED) return false;
@@ -104,17 +105,23 @@ bool fetchWeather(CityData& city, bool useFahrenheit) {
 
 void fetchAllWeather() {
     bool networkFailed = false;
+    bool anyUpdated = false;
     for (uint8_t i = 0; i < g_state.config.numCities; i++) {
         if (!fetchWeather(g_state.cities[i], g_state.config.useFahrenheit)) {
             networkFailed = true;
             break;  // network down, stop trying remaining cities
         }
+        anyUpdated = true;
         delay(200);
     }
-    // Only set the timer if we got through all cities (API was reachable).
-    // If network failed mid-way, retry next cycle to finish remaining.
     if (!networkFailed) {
         g_state.lastWeatherFetch = millis();
+    } else {
+        // Back off on failure: retry in 60s instead of hammering every 5s
+        g_state.lastWeatherFetch = millis() - WEATHER_RETRY_MS;
     }
-    g_state.needsFullRedraw = true;
+    // Only redraw if we actually got new data
+    if (anyUpdated) {
+        g_state.needsFullRedraw = true;
+    }
 }
