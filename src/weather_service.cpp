@@ -31,10 +31,17 @@ bool fetchWeather(CityData& city, bool useFahrenheit) {
     http.setTimeout(10000);
     int httpCode = http.GET();
 
-    if (httpCode != 200) {
-        Serial.printf("Weather: HTTP %d for %s\n", httpCode, preset.name);
+    if (httpCode <= 0) {
+        // Network error — no response at all
+        Serial.printf("Weather: Network error %d for %s\n", httpCode, preset.name);
         http.end();
         return false;
+    }
+    if (httpCode != 200) {
+        // Got a response but not OK — API reachable, don't need to retry
+        Serial.printf("Weather: HTTP %d for %s\n", httpCode, preset.name);
+        http.end();
+        return true;  // count as "attempted" so we don't hammer
     }
 
     String payload = http.getString();
@@ -96,9 +103,18 @@ bool fetchWeather(CityData& city, bool useFahrenheit) {
 }
 
 void fetchAllWeather() {
+    bool networkFailed = false;
     for (uint8_t i = 0; i < g_state.config.numCities; i++) {
-        fetchWeather(g_state.cities[i], g_state.config.useFahrenheit);
-        delay(200);  // Small delay between requests to be polite
+        if (!fetchWeather(g_state.cities[i], g_state.config.useFahrenheit)) {
+            networkFailed = true;
+            break;  // network down, stop trying remaining cities
+        }
+        delay(200);
     }
-    g_state.lastWeatherFetch = millis();
+    // Only set the timer if we got through all cities (API was reachable).
+    // If network failed mid-way, retry next cycle to finish remaining.
+    if (!networkFailed) {
+        g_state.lastWeatherFetch = millis();
+    }
+    g_state.needsFullRedraw = true;
 }

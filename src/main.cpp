@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <esp_task_wdt.h>
 #include "epd_driver.h"
 #include "fonts.h"
 #include "app_state.h"
@@ -55,7 +56,6 @@ static void networkTask(void* param) {
                 networkBusy = true;
                 fetchAllWeather();
                 networkBusy = false;
-                g_state.needsFullRedraw = true;
             }
             // NTP resync
             if (now - g_state.lastNtpSync > NTP_RESYNC_MS) {
@@ -181,11 +181,16 @@ void setup() {
     g_state.needsFullRedraw = true;
     g_state.lastDisplayUpdate = millis();
 
+    // Task watchdog: reboot if main loop hangs for >30s
+    esp_task_wdt_init(30, true);
+    esp_task_wdt_add(NULL);
+
     serialCmdInit();
     Serial.println("=== ClockyClock Ready ===");
 }
 
 void loop() {
+    esp_task_wdt_reset();  // feed watchdog
     unsigned long now = millis();
 
     // Poll serial commands
