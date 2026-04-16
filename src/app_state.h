@@ -114,6 +114,12 @@ struct AppState {
     // Battery
     float batteryVoltage;
 
+    // Neko animation
+    uint8_t nekoState;
+    uint8_t nekoStateTimer;
+    uint8_t nekoCurrentSprite;
+    bool nekoSleepToggle;
+
 };
 
 // Global state

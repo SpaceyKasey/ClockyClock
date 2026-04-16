@@ -3,6 +3,7 @@
 #include "time_utils.h"
 #include "touch_handler.h"
 #include "cities.h"
+#include "neko_sprites.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -179,8 +180,10 @@ static void drawCityRow(uint8_t rowIdx, uint8_t cityIdx) {
 void screenClockRender() {
     clearFramebuffer();
 
-    // Header
-    drawText(FONT_MD, "CLOCKYCLOCK", 20, 38, COLOR_BLACK);
+    // Header with Neko
+    nekoUpdate();
+    nekoDrawAt(16, 9);
+    drawText(FONT_MD, "CLOCKYCLOCK", 54, 38, COLOR_BLACK);
 
     // Config gear button
     drawButton(SCREEN_W - 70, 5, 60, 40, "CFG");

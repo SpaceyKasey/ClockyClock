@@ -293,4 +293,4 @@ screen /dev/cu.usbmodem* 115200
 
 ## License
 MIT  
-Uses the [LilyGo-EPD47](https://github.com/Xinyuan-LilyGO/LilyGo-EPD47) SDK. Weather data from [Open-Meteo](https://open-meteo.com/) (CC BY 4.0).
+Uses the [LilyGo-EPD47](https://github.com/Xinyuan-LilyGO/LilyGo-EPD47) SDK. Weather data from [Open-Meteo](https://open-meteo.com/) (CC BY 4.0). Neko cat sprites from [crgimenes/neko](https://github.com/crgimenes/neko) (BSD 2-Clause License).

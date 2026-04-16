@@ -30,4 +30,10 @@ void initAppState() {
     }
 
     g_state.needsFullRedraw = true;
+
+    // Neko starts awake
+    g_state.nekoState = 0;  // NEKO_AWAKE
+    g_state.nekoStateTimer = 12;
+    g_state.nekoCurrentSprite = 0;
+    g_state.nekoSleepToggle = false;
 }
