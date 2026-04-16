@@ -22,9 +22,9 @@ void clearFramebuffer();
 void pushFramebuffer();
 
 // Text helpers
-void drawText(const GFXfont* font, const char* text, int32_t x, int32_t y, uint8_t color = COLOR_BLACK);
-void drawTextRight(const GFXfont* font, const char* text, int32_t rightX, int32_t y, uint8_t color = COLOR_BLACK);
-void drawTextCentered(const GFXfont* font, const char* text, int32_t centerX, int32_t y, uint8_t color = COLOR_BLACK);
+void drawText(const GFXfont* font, const char* text, int32_t x, int32_t y, uint8_t color = COLOR_BLACK, uint8_t bg = COLOR_WHITE);
+void drawTextRight(const GFXfont* font, const char* text, int32_t rightX, int32_t y, uint8_t color = COLOR_BLACK, uint8_t bg = COLOR_WHITE);
+void drawTextCentered(const GFXfont* font, const char* text, int32_t centerX, int32_t y, uint8_t color = COLOR_BLACK, uint8_t bg = COLOR_WHITE);
 int32_t getTextWidth(const GFXfont* font, const char* text);
 
 // Shape helpers
@@ -33,7 +33,7 @@ void drawButton(int32_t x, int32_t y, int32_t w, int32_t h, const char* label, b
 void drawCheckbox(int32_t x, int32_t y, bool checked);
 
 // Icon helpers (48x48 weather icons)
-void drawWeatherIcon(int32_t x, int32_t y, int weatherCode);
+void drawWeatherIcon(int32_t x, int32_t y, int weatherCode, bool invert = false);
 
 // Status bar
 void drawStatusBar();

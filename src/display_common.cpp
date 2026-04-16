@@ -26,22 +26,22 @@ void pushFramebuffer() {
     epd_poweroff();
 }
 
-void drawText(const GFXfont* font, const char* text, int32_t x, int32_t y, uint8_t color) {
+void drawText(const GFXfont* font, const char* text, int32_t x, int32_t y, uint8_t color, uint8_t bg) {
     int32_t cx = x, cy = y;
     FontProperties props = {0};
     props.fg_color = color;
-    props.bg_color = COLOR_WHITE;
+    props.bg_color = bg;
     write_mode(font, text, &cx, &cy, g_state.framebuffer, BLACK_ON_WHITE, &props);
 }
 
-void drawTextRight(const GFXfont* font, const char* text, int32_t rightX, int32_t y, uint8_t color) {
+void drawTextRight(const GFXfont* font, const char* text, int32_t rightX, int32_t y, uint8_t color, uint8_t bg) {
     int32_t w = getTextWidth(font, text);
-    drawText(font, text, rightX - w, y, color);
+    drawText(font, text, rightX - w, y, color, bg);
 }
 
-void drawTextCentered(const GFXfont* font, const char* text, int32_t centerX, int32_t y, uint8_t color) {
+void drawTextCentered(const GFXfont* font, const char* text, int32_t centerX, int32_t y, uint8_t color, uint8_t bg) {
     int32_t w = getTextWidth(font, text);
-    drawText(font, text, centerX - w / 2, y, color);
+    drawText(font, text, centerX - w / 2, y, color, bg);
 }
 
 int32_t getTextWidth(const GFXfont* font, const char* text) {
@@ -74,11 +74,23 @@ void drawCheckbox(int32_t x, int32_t y, bool checked) {
     }
 }
 
-void drawWeatherIcon(int32_t x, int32_t y, int weatherCode) {
+static uint8_t invertedIconBuf[ICON_SIZE * ICON_SIZE / 2];
+
+void drawWeatherIcon(int32_t x, int32_t y, int weatherCode, bool invert) {
     const uint8_t* icon = getWeatherIcon(weatherCode);
     if (icon) {
+        const uint8_t* src = icon;
+        if (invert) {
+            for (int i = 0; i < ICON_SIZE * ICON_SIZE / 2; i++) {
+                // Each byte has two 4-bit pixels; invert both (15 - val)
+                uint8_t hi = (icon[i] >> 4) & 0x0F;
+                uint8_t lo = icon[i] & 0x0F;
+                invertedIconBuf[i] = ((15 - hi) << 4) | (15 - lo);
+            }
+            src = invertedIconBuf;
+        }
         Rect_t area = {x, y, ICON_SIZE, ICON_SIZE};
-        epd_copy_to_framebuffer(area, (uint8_t*)icon, g_state.framebuffer);
+        epd_copy_to_framebuffer(area, (uint8_t*)src, g_state.framebuffer);
     }
 }
 

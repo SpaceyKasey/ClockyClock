@@ -17,12 +17,17 @@ struct WeatherDay {
     int code;           // WMO weather code
     float tempMax;
     float tempMin;
+    float precipHours;  // hours of precipitation
+    int precipChance;   // max probability % (0-100)
 };
 
 struct CityData {
     uint8_t presetIndex;
     struct tm localTime;
     float currentTemp;
+    float currentWindSpeed;
+    int currentWindDir;
+    int currentHumidity;
     int currentWeatherCode;
     WeatherDay forecast[7];
     char sunrise[6];    // "06:23"

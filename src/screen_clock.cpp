@@ -48,14 +48,53 @@ static void buildZones() {
     }
 }
 
+// Convert wind direction degrees to compass string
+static const char* windDirStr(int deg) {
+    static const char* dirs[] = {"N","NNE","NE","ENE","E","ESE","SE","SSE",
+                                  "S","SSW","SW","WSW","W","WNW","NW","NNW"};
+    return dirs[((deg + 11) / 22) % 16];
+}
+
+// Parse "HH:MM" string to minutes since midnight
+static int parseTimeToMinutes(const char* hhmm) {
+    if (!hhmm || strlen(hhmm) < 4) return -1;
+    int h = atoi(hhmm);
+    const char* colon = strchr(hhmm, ':');
+    if (!colon) return -1;
+    int m = atoi(colon + 1);
+    return h * 60 + m;
+}
+
+static bool isNightTime(const CityData& city) {
+    if (!city.weatherValid || city.sunrise[0] == '\0') return false;
+    int nowMin = city.localTime.tm_hour * 60 + city.localTime.tm_min;
+    int rise = parseTimeToMinutes(city.sunrise);
+    int set  = parseTimeToMinutes(city.sunset);
+    if (rise < 0 || set < 0) return false;
+    return nowMin < rise || nowMin >= set;
+}
+
 static void drawCityRow(uint8_t rowIdx, uint8_t cityIdx) {
     const CityData& city = g_state.cities[cityIdx];
     const CityPreset& preset = PRESET_CITIES[city.presetIndex];
 
     int32_t y = HEADER_H + rowIdx * ROW_H;
 
+    // Check if nighttime for color inversion
+    bool night = g_state.ntpSynced && isNightTime(city);
+
+    // Background fill for night rows
+    if (night) {
+        epd_fill_rect(0, y + 1, SCREEN_W, ROW_H - 1, COLOR_BLACK, g_state.framebuffer);
+    }
+
+    // Colors based on day/night
+    uint8_t fg    = night ? COLOR_WHITE : COLOR_BLACK;
+    uint8_t fg2   = night ? COLOR_WHITE : COLOR_MID;
+    uint8_t bg    = night ? COLOR_BLACK : COLOR_WHITE;
+
     // Separator line
-    drawHLine(10, y, SCREEN_W - 20, COLOR_LIGHT);
+    drawHLine(10, y, SCREEN_W - 20, night ? COLOR_DARK : COLOR_LIGHT);
 
     // Layout columns
     int32_t nameX = 20;
@@ -64,10 +103,22 @@ static void drawCityRow(uint8_t rowIdx, uint8_t cityIdx) {
     int32_t todayWx = 690;
     int32_t tmrwWx = 820;
 
-    int32_t textBaseline = y + 65;    // Vertical center for large text
+    // City name
+    drawText(FONT_MD, preset.name, nameX, y + 42, fg, bg);
 
-    // City name (medium font)
-    drawText(FONT_MD, preset.name, nameX, y + 55, COLOR_BLACK);
+    // Sunrise/sunset under city name
+    if (city.weatherValid && city.sunrise[0] != '\0') {
+        char sunBuf[20];
+        snprintf(sunBuf, sizeof(sunBuf), "%s-%s", city.sunrise, city.sunset);
+        drawText(FONT_SM, sunBuf, nameX, y + 68, fg2, bg);
+    }
+
+    // Day of week + date under sunrise/sunset
+    if (g_state.ntpSynced) {
+        char dateBuf[16];
+        formatDate(&city.localTime, dateBuf, sizeof(dateBuf));
+        drawText(FONT_SM, dateBuf, nameX, y + 92, fg2, bg);
+    }
 
     // Time (large font)
     char timeBuf[16];
@@ -79,17 +130,18 @@ static void drawCityRow(uint8_t rowIdx, uint8_t cityIdx) {
     } else {
         strcpy(timeBuf, "--:--");
     }
-    drawText(FONT_LG, timeBuf, timeX, textBaseline + 10, COLOR_BLACK);
+    drawText(FONT_LG, timeBuf, timeX, y + 75, fg, bg);
 
-    // Date - stacked: day of week above, month+day below
-    if (g_state.ntpSynced) {
-        char dayBuf[8], mdBuf[16];
-        formatDayShort(&city.localTime, dayBuf, sizeof(dayBuf));
-        formatMonthDay(&city.localTime, mdBuf, sizeof(mdBuf));
-        drawText(FONT_SM, dayBuf, dateX, y + 40, COLOR_MID);
-        drawText(FONT_SM, mdBuf, dateX, y + 70, COLOR_MID);
-    } else {
-        drawText(FONT_SM, "---", dateX, y + 55, COLOR_MID);
+    // Wind + humidity (where date column used to be)
+    if (city.weatherValid) {
+        char buf[20];
+        snprintf(buf, sizeof(buf), "%.0f%s",
+                 city.currentWindSpeed,
+                 g_state.config.useFahrenheit ? "mph" : "km/h");
+        drawText(FONT_SM, buf, dateX, y + 35, fg2, bg);
+        drawText(FONT_SM, windDirStr(city.currentWindDir), dateX, y + 60, fg2, bg);
+        snprintf(buf, sizeof(buf), "%d%%rh", city.currentHumidity);
+        drawText(FONT_SM, buf, dateX, y + 85, fg2, bg);
     }
 
     // Weather
@@ -97,23 +149,29 @@ static void drawCityRow(uint8_t rowIdx, uint8_t cityIdx) {
         const char* unit = g_state.config.useFahrenheit ? "F" : "C";
         char tempBuf[16];
 
-        // Today: icon + current temp, then H/L below
-        drawWeatherIcon(todayWx, y + 10, city.currentWeatherCode);
+        // Today: icon + current temp, H/L, precip
+        drawWeatherIcon(todayWx, y + 5, city.currentWeatherCode, night);
         snprintf(tempBuf, sizeof(tempBuf), "%.0f%s", city.currentTemp, unit);
-        drawText(FONT_SM, tempBuf, todayWx + 52, y + 42, COLOR_BLACK);
+        drawText(FONT_SM, tempBuf, todayWx + 52, y + 35, fg, bg);
         snprintf(tempBuf, sizeof(tempBuf), "%.0f/%.0f",
                  city.forecast[0].tempMax, city.forecast[0].tempMin);
-        drawText(FONT_SM, tempBuf, todayWx + 52, y + 70, COLOR_MID);
+        drawText(FONT_SM, tempBuf, todayWx + 52, y + 60, fg2, bg);
+        snprintf(tempBuf, sizeof(tempBuf), "%.0fh %d%%",
+                 city.forecast[0].precipHours, city.forecast[0].precipChance);
+        drawText(FONT_SM, tempBuf, todayWx + 52, y + 85, fg2, bg);
 
-        // Tomorrow: icon + max temp, then H/L below
+        // Tomorrow: icon + max temp, H/L, precip
         if (city.forecast[1].code >= 0) {
-            drawWeatherIcon(tmrwWx, y + 10, city.forecast[1].code);
+            drawWeatherIcon(tmrwWx, y + 5, city.forecast[1].code, night);
             snprintf(tempBuf, sizeof(tempBuf), "%.0f%s",
                      city.forecast[1].tempMax, unit);
-            drawText(FONT_SM, tempBuf, tmrwWx + 52, y + 42, COLOR_MID);
+            drawText(FONT_SM, tempBuf, tmrwWx + 52, y + 35, fg2, bg);
             snprintf(tempBuf, sizeof(tempBuf), "%.0f/%.0f",
                      city.forecast[1].tempMax, city.forecast[1].tempMin);
-            drawText(FONT_SM, tempBuf, tmrwWx + 52, y + 70, COLOR_MID);
+            drawText(FONT_SM, tempBuf, tmrwWx + 52, y + 60, fg2, bg);
+            snprintf(tempBuf, sizeof(tempBuf), "%.0fh %d%%",
+                     city.forecast[1].precipHours, city.forecast[1].precipChance);
+            drawText(FONT_SM, tempBuf, tmrwWx + 52, y + 85, fg2, bg);
         }
     }
 }
@@ -128,6 +186,7 @@ void screenClockRender() {
     drawButton(SCREEN_W - 70, 5, 60, 40, "CFG");
 
     // Subtitle labels
+    drawText(FONT_SM, "Wind", 585, 45, COLOR_MID);
     drawText(FONT_SM, "Today", 690, 45, COLOR_MID);
     drawText(FONT_SM, "Tmrw", 825, 45, COLOR_MID);
 

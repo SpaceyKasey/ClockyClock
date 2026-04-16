@@ -15,12 +15,14 @@ bool fetchWeather(CityData& city, bool useFahrenheit) {
     char url[512];
     snprintf(url, sizeof(url),
              "%s?latitude=%.4f&longitude=%.4f"
-             "&current=temperature_2m,weather_code"
-             "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset"
+             "&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m"
+             "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_hours,precipitation_probability_max"
              "&forecast_days=7"
              "&timezone=auto"
-             "&temperature_unit=%s",
-             OPEN_METEO_BASE, preset.latitude, preset.longitude, tempUnit);
+             "&temperature_unit=%s"
+             "&wind_speed_unit=%s",
+             OPEN_METEO_BASE, preset.latitude, preset.longitude, tempUnit,
+             useFahrenheit ? "mph" : "kmh");
 
     Serial.printf("Weather: Fetching for %s...\n", preset.name);
 
@@ -50,6 +52,9 @@ bool fetchWeather(CityData& city, bool useFahrenheit) {
     JsonObject current = doc["current"];
     city.currentTemp = current["temperature_2m"] | 0.0f;
     city.currentWeatherCode = current["weather_code"] | -1;
+    city.currentWindSpeed = current["wind_speed_10m"] | 0.0f;
+    city.currentWindDir = current["wind_direction_10m"] | 0;
+    city.currentHumidity = current["relative_humidity_2m"] | 0;
 
     // Daily forecast
     JsonObject daily = doc["daily"];
@@ -58,11 +63,15 @@ bool fetchWeather(CityData& city, bool useFahrenheit) {
     JsonArray minTemps = daily["temperature_2m_min"];
     JsonArray sunrises = daily["sunrise"];
     JsonArray sunsets = daily["sunset"];
+    JsonArray precipHours = daily["precipitation_hours"];
+    JsonArray precipProb = daily["precipitation_probability_max"];
 
     for (int i = 0; i < 7 && i < (int)codes.size(); i++) {
         city.forecast[i].code = codes[i] | -1;
         city.forecast[i].tempMax = maxTemps[i] | 0.0f;
         city.forecast[i].tempMin = minTemps[i] | 0.0f;
+        city.forecast[i].precipHours = precipHours[i] | 0.0f;
+        city.forecast[i].precipChance = precipProb[i] | 0;
     }
 
     // Store today's sunrise/sunset (format: "2024-04-06T06:23")
