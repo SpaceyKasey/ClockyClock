@@ -111,14 +111,14 @@ static void drawCityRow(uint8_t rowIdx, uint8_t cityIdx) {
     if (city.weatherValid && city.sunrise[0] != '\0') {
         char sunBuf[20];
         snprintf(sunBuf, sizeof(sunBuf), "%s-%s", city.sunrise, city.sunset);
-        drawText(FONT_SM, sunBuf, nameX, y + 68, fg2, bg);
+        drawText(FONT_SM, sunBuf, nameX, y + 72, fg2, bg);
     }
 
     // Day of week + date under sunrise/sunset
     if (g_state.ntpSynced) {
         char dateBuf[16];
         formatDate(&city.localTime, dateBuf, sizeof(dateBuf));
-        drawText(FONT_SM, dateBuf, nameX, y + 92, fg2, bg);
+        drawText(FONT_SM, dateBuf, nameX, y + 96, fg2, bg);
     }
 
     // Time (large font)
